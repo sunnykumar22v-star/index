@@ -57,12 +57,15 @@
       width: 65%;
       font-family: monospace;
     }
+    input[type="range"] {
+      width: 60%;
+    }
     #log {
       background: #000;
       color: #0f0;
       font-family: monospace;
       font-size: 0.8rem;
-      height: 130px;
+      height: 140px;
       overflow-y: auto;
       padding: 0.75rem;
       border-radius: 6px;
@@ -76,7 +79,7 @@
   <div class="card">
     <button id="connectBtn">Connect to Pro Lmap</button>
     <button id="disconnectBtn" class="danger" disabled>Disconnect</button>
-    <p id="status" style="margin-bottom: 0; font-size: 0.9rem; color: #aaa;">Status: Disconnected</p>
+    <p id="status" style="margin-bottom: 0; margin-top: 0.75rem; font-size: 0.9rem; color: #aaa;">Status: Disconnected</p>
   </div>
 
   <div class="card">
@@ -110,10 +113,8 @@
   <div id="log">Ready. Click "Connect to Pro Lmap" to scan...<br></div>
 
   <script>
-    // Primary Service and Characteristic from your GATT profile
     const SERVICE_UUID = 0xFFE0;
     const CHAR_UUID = 0xFFE1;
-    // Optional OTA/Config service declared so browser allows access if needed
     const VENDOR_SERVICE_UUID = '5833ff01-9b8b-5191-6142-22a4536ef123';
 
     let bleDevice = null;
@@ -143,18 +144,24 @@
       connectBtn.disabled = enabled;
     }
 
-    // Connect to device
     connectBtn.addEventListener('click', async () => {
+      // Check for Web Bluetooth support (blocks standard iOS browsers)
+      if (!navigator.bluetooth) {
+        log('Error: Web Bluetooth is not supported in this browser.');
+        log('-> Use Chrome or Edge on macOS/PC, or the "Bluefy" app on iOS.');
+        return;
+      }
+
       try {
         log('Requesting Bluetooth device...');
         bleDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ namePrefix: 'Pro' }, { services: [SERVICE_UUID] }],
+          acceptAllDevices: true,
           optionalServices: [SERVICE_UUID, VENDOR_SERVICE_UUID]
         });
 
         bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
-        log(`Connecting to ${bleDevice.name}...`);
+        log(`Connecting to ${bleDevice.name || 'Unnamed Device'}...`);
         const server = await bleDevice.gatt.connect();
 
         log('Getting Service 0xFFE0...');
@@ -163,7 +170,6 @@
         log('Getting Characteristic 0xFFE1...');
         writeCharacteristic = await service.getCharacteristic(CHAR_UUID);
 
-        // Enable notifications on 0xFFE1 if the lamp sends status replies
         if (writeCharacteristic.properties.notify) {
           await writeCharacteristic.startNotifications();
           writeCharacteristic.addEventListener('characteristicvaluechanged', (event) => {
@@ -173,12 +179,12 @@
           });
         }
 
-        statusEl.textContent = `Status: Connected to ${bleDevice.name}`;
+        statusEl.textContent = `Status: Connected to ${bleDevice.name || 'Pro Lmap'}`;
         statusEl.style.color = '#28a745';
         setControlsEnabled(true);
         log('Connected and ready.');
       } catch (err) {
-        log(`Error: ${err.message}`);
+        log(`Error: ${err?.message || err}`);
       }
     });
 
@@ -196,13 +202,11 @@
       log('Device disconnected.');
     }
 
-    // Helper to write byte array to 0xFFE1
     async function sendBytes(byteArray) {
       if (!writeCharacteristic) return;
       const buffer = new Uint8Array(byteArray);
       const hexStr = Array.from(buffer).map(b => b.toString(16).padStart(2, '0')).join(' ');
       try {
-        // 0xFFE1 supports both WRITE and WRITE_NO_RESPONSE
         if (writeCharacteristic.properties.writeWithoutResponse) {
           await writeCharacteristic.writeValueWithoutResponse(buffer);
         } else {
@@ -214,7 +218,7 @@
       }
     }
 
-    // Standard 9-byte ELK-BLEDOM / Lotus Lantern Protocol Commands
+    // ELK-BLEDOM Protocol Commands
     document.getElementById('onBtn').addEventListener('click', () => {
       sendBytes([0x7e, 0x00, 0x04, 0xf0, 0x00, 0x01, 0xff, 0x00, 0xef]);
     });
@@ -223,7 +227,6 @@
       sendBytes([0x7e, 0x00, 0x04, 0x00, 0x00, 0x00, 0xff, 0x00, 0xef]);
     });
 
-    // Throttle color picker events so we don't flood the BLE queue
     let colorTimeout = null;
     document.getElementById('colorPicker').addEventListener('input', (e) => {
       clearTimeout(colorTimeout);
@@ -246,7 +249,6 @@
       }, 60);
     });
 
-    // Send custom hex string
     document.getElementById('sendRawBtn').addEventListener('click', () => {
       const raw = document.getElementById('rawHexInput').value.trim();
       if (!raw) return;
