@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pro Lmap Web Bluetooth Controller</title>
+  <title>LEDDMX Bluetooth Controller</title>
   <style>
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -74,10 +74,10 @@
 </head>
 <body>
 
-  <h2>Pro Lmap BLE Controller</h2>
+  <h2>LEDDMX BLE Controller</h2>
 
   <div class="card">
-    <button id="connectBtn">Connect to Pro Lmap</button>
+    <button id="connectBtn">Connect to LEDDMX</button>
     <button id="disconnectBtn" class="danger" disabled>Disconnect</button>
     <p id="status" style="margin-bottom: 0; margin-top: 0.75rem; font-size: 0.9rem; color: #aaa;">Status: Disconnected</p>
   </div>
@@ -110,12 +110,11 @@
     </div>
   </div>
 
-  <div id="log">Ready. Click "Connect to Pro Lmap" to scan...<br></div>
+  <div id="log">Ready. Click "Connect to LEDDMX" to scan...<br></div>
 
   <script>
     const SERVICE_UUID = 0xFFE0;
     const CHAR_UUID = 0xFFE1;
-    const VENDOR_SERVICE_UUID = '5833ff01-9b8b-5191-6142-22a4536ef123';
 
     let bleDevice = null;
     let writeCharacteristic = null;
@@ -145,7 +144,6 @@
     }
 
     connectBtn.addEventListener('click', async () => {
-      // Check for Web Bluetooth support (blocks standard iOS browsers)
       if (!navigator.bluetooth) {
         log('Error: Web Bluetooth is not supported in this browser.');
         log('-> Use Chrome or Edge on macOS/PC, or the "Bluefy" app on iOS.');
@@ -155,13 +153,13 @@
       try {
         log('Requesting Bluetooth device...');
         bleDevice = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: [SERVICE_UUID, VENDOR_SERVICE_UUID]
+          filters: [{ namePrefix: 'LEDDMX' }],
+          optionalServices: [SERVICE_UUID]
         });
 
         bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
-        log(`Connecting to ${bleDevice.name || 'Unnamed Device'}...`);
+        log(`Connecting to ${bleDevice.name || 'LEDDMX Device'}...`);
         const server = await bleDevice.gatt.connect();
 
         log('Getting Service 0xFFE0...');
@@ -179,7 +177,7 @@
           });
         }
 
-        statusEl.textContent = `Status: Connected to ${bleDevice.name || 'Pro Lmap'}`;
+        statusEl.textContent = `Status: Connected to ${bleDevice.name}`;
         statusEl.style.color = '#28a745';
         setControlsEnabled(true);
         log('Connected and ready.');
@@ -218,7 +216,7 @@
       }
     }
 
-    // ELK-BLEDOM Protocol Commands
+    // Standard lighting command packets
     document.getElementById('onBtn').addEventListener('click', () => {
       sendBytes([0x7e, 0x00, 0x04, 0xf0, 0x00, 0x01, 0xff, 0x00, 0xef]);
     });
