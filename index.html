@@ -10,8 +10,8 @@
       background: #121212;
       color: #f5f5f5;
       max-width: 480px;
-      margin: 2rem auto;
-      padding: 1.5rem;
+      margin: 1.5rem auto;
+      padding: 1.25rem;
       border-radius: 12px;
       border: 1px solid #2c2c2c;
     }
@@ -57,15 +57,13 @@
       width: 65%;
       font-family: monospace;
     }
-    input[type="range"] {
-      width: 60%;
-    }
+    input[type="range"] { width: 60%; }
     #log {
       background: #000;
       color: #0f0;
       font-family: monospace;
       font-size: 0.8rem;
-      height: 140px;
+      height: 150px;
       overflow-y: auto;
       padding: 0.75rem;
       border-radius: 6px;
@@ -77,7 +75,7 @@
   <h2>LEDDMX BLE Controller</h2>
 
   <div class="card">
-    <button id="connectBtn">Connect to LEDDMX</button>
+    <button id="connectBtn">Scan & Connect</button>
     <button id="disconnectBtn" class="danger" disabled>Disconnect</button>
     <p id="status" style="margin-bottom: 0; margin-top: 0.75rem; font-size: 0.9rem; color: #aaa;">Status: Disconnected</p>
   </div>
@@ -103,14 +101,14 @@
   </div>
 
   <div class="card">
-    <label style="display:block; margin-bottom:0.5rem; font-size:0.85rem;">Raw Hex Payload (for testing custom commands)</label>
+    <label style="display:block; margin-bottom:0.5rem; font-size:0.85rem;">Raw Hex Payload</label>
     <div class="row" style="margin:0;">
       <input type="text" id="rawHexInput" placeholder="e.g. 7e 00 05 03 ff 00 00 00 ef" disabled>
       <button id="sendRawBtn" disabled>Send</button>
     </div>
   </div>
 
-  <div id="log">Ready. Click "Connect to LEDDMX" to scan...<br></div>
+  <div id="log">Ready. Disconnect other BLE apps first, then tap "Scan & Connect"...<br></div>
 
   <script>
     const SERVICE_UUID = 0xFFE0;
@@ -146,26 +144,25 @@
     connectBtn.addEventListener('click', async () => {
       if (!navigator.bluetooth) {
         log('Error: Web Bluetooth is not supported in this browser.');
-        log('-> Use Chrome or Edge on macOS/PC, or the "Bluefy" app on iOS.');
         return;
       }
 
       try {
-        log('Requesting Bluetooth device...');
+        log('Opening BLE device picker...');
         bleDevice = await navigator.bluetooth.requestDevice({
-          filters: [{ namePrefix: 'LEDDMX' }],
+          acceptAllDevices: true,
           optionalServices: [SERVICE_UUID]
         });
 
         bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
-        log(`Connecting to ${bleDevice.name || 'LEDDMX Device'}...`);
+        log(`Connecting to ${bleDevice.name || bleDevice.id}...`);
         const server = await bleDevice.gatt.connect();
 
-        log('Getting Service 0xFFE0...');
+        log('Discovering Service 0xFFE0...');
         const service = await server.getPrimaryService(SERVICE_UUID);
 
-        log('Getting Characteristic 0xFFE1...');
+        log('Discovering Characteristic 0xFFE1...');
         writeCharacteristic = await service.getCharacteristic(CHAR_UUID);
 
         if (writeCharacteristic.properties.notify) {
@@ -177,12 +174,13 @@
           });
         }
 
-        statusEl.textContent = `Status: Connected to ${bleDevice.name}`;
+        statusEl.textContent = `Status: Connected to ${bleDevice.name || 'LEDDMX'}`;
         statusEl.style.color = '#28a745';
         setControlsEnabled(true);
-        log('Connected and ready.');
+        log('Connected and ready!');
       } catch (err) {
-        log(`Error: ${err?.message || err}`);
+        const msg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+        log(`Error: ${msg} (If code 2: picker cancelled or device still connected in another app)`);
       }
     });
 
@@ -212,11 +210,10 @@
         }
         log(`TX: ${hexStr}`);
       } catch (err) {
-        log(`Write failed: ${err.message}`);
+        log(`Write failed: ${err?.message || err}`);
       }
     }
 
-    // Standard lighting command packets
     document.getElementById('onBtn').addEventListener('click', () => {
       sendBytes([0x7e, 0x00, 0x04, 0xf0, 0x00, 0x01, 0xff, 0x00, 0xef]);
     });
