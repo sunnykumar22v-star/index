@@ -1,255 +1,70 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LEDDMX Bluetooth Controller</title>
-  <style>
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #121212;
-      color: #f5f5f5;
-      max-width: 480px;
-      margin: 1.5rem auto;
-      padding: 1.25rem;
-      border-radius: 12px;
-      border: 1px solid #2c2c2c;
-    }
-    h2 { margin-top: 0; }
-    .card {
-      background: #1e1e1e;
-      padding: 1rem;
-      border-radius: 8px;
-      margin-bottom: 1rem;
-    }
-    button {
-      background: #007bff;
-      color: white;
-      border: none;
-      padding: 0.65rem 1.1rem;
-      border-radius: 6px;
-      font-size: 0.95rem;
-      cursor: pointer;
-      margin-right: 0.5rem;
-    }
-    button:disabled { background: #444; cursor: not-allowed; }
-    button.danger { background: #dc3545; }
-    button.success { background: #28a745; }
-    .row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin: 0.75rem 0;
-    }
-    input[type="color"] {
-      width: 60px;
-      height: 36px;
-      border: none;
-      background: none;
-      cursor: pointer;
-    }
-    input[type="text"] {
-      background: #2a2a2a;
-      border: 1px solid #444;
-      color: #fff;
-      padding: 0.5rem;
-      border-radius: 4px;
-      width: 65%;
-      font-family: monospace;
-    }
-    input[type="range"] { width: 60%; }
-    #log {
-      background: #000;
-      color: #0f0;
-      font-family: monospace;
-      font-size: 0.8rem;
-      height: 150px;
-      overflow-y: auto;
-      padding: 0.75rem;
-      border-radius: 6px;
-    }
-  </style>
-</head>
-<body>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Heater Control</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1d21;--mut:#6b7280;--acc:#e8590c;--ok:#2b8a3e;--bd:#d9dce1;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--card:#202327;--tx:#eceef1;--mut:#9aa1ab;--acc:#ff8a3d;--ok:#51cf66;--bd:#343840}}
+:root[data-theme="dark"]{--bg:#15171a;--card:#202327;--tx:#eceef1;--mut:#9aa1ab;--acc:#ff8a3d;--ok:#51cf66;--bd:#343840}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,sans-serif}
+main{max-width:460px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:12px}
+h1{font-size:1.2rem;margin:0 0 12px}
+.big{font-size:3.2rem;font-weight:700;line-height:1}
+.mut{color:var(--mut);font-size:.9rem}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{font:inherit;padding:10px 14px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);cursor:pointer}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff}
+button.sel{outline:2px solid var(--acc)}
+input{font:inherit;width:70px;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+.badge{display:inline-block;padding:4px 12px;border-radius:99px;font-weight:600;background:var(--bd)}
+.badge.on{background:var(--acc);color:#fff}
+</style></head><body><main>
+<div class="card"><h1>Room Heater</h1>
+<div class="row"><button class="p" id="conn">Connect to ESP32_Heater</button><span class="mut" id="st">Not connected</span></div></div>
 
-  <h2>LEDDMX BLE Controller</h2>
+<div class="card">
+<div class="row" style="justify-content:space-between;align-items:flex-end">
+<div><div class="mut">Room temperature</div><div class="big"><span id="t">--</span>°C</div></div>
+<div style="text-align:right"><div class="mut">Humidity</div><div style="font-size:1.6rem"><span id="h">--</span>%</div></div></div>
+<p>Heater: <span class="badge" id="heat">--</span></p></div>
 
-  <div class="card">
-    <button id="connectBtn">Scan & Connect</button>
-    <button id="disconnectBtn" class="danger" disabled>Disconnect</button>
-    <p id="status" style="margin-bottom: 0; margin-top: 0.75rem; font-size: 0.9rem; color: #aaa;">Status: Disconnected</p>
-  </div>
+<div class="card"><h1>Temperature limits</h1>
+<div class="row"><label>Heater ON below <input id="lo" type="number" min="5" max="39" value="20"> °C</label></div>
+<div class="row" style="margin:10px 0"><label>Heater OFF at <input id="hi" type="number" min="6" max="40" value="35"> °C</label></div>
+<button class="p" id="apply">Apply limits</button>
+<p class="mut" id="msg"></p></div>
 
-  <div class="card">
-    <div class="row">
-      <span>Power</span>
-      <div>
-        <button id="onBtn" class="success" disabled>ON</button>
-        <button id="offBtn" class="danger" disabled>OFF</button>
-      </div>
-    </div>
-
-    <div class="row">
-      <label for="colorPicker">RGB Color</label>
-      <input type="color" id="colorPicker" value="#ff0055" disabled>
-    </div>
-
-    <div class="row">
-      <label for="brightnessSlider">Brightness (<span id="brightVal">100</span>%)</label>
-      <input type="range" id="brightnessSlider" min="0" max="100" value="100" disabled>
-    </div>
-  </div>
-
-  <div class="card">
-    <label style="display:block; margin-bottom:0.5rem; font-size:0.85rem;">Raw Hex Payload</label>
-    <div class="row" style="margin:0;">
-      <input type="text" id="rawHexInput" placeholder="e.g. 7e 00 05 03 ff 00 00 00 ef" disabled>
-      <button id="sendRawBtn" disabled>Send</button>
-    </div>
-  </div>
-
-  <div id="log">Ready. Disconnect other BLE apps first, then tap "Scan & Connect"...<br></div>
-
-  <script>
-    const SERVICE_UUID = 0xFFE0;
-    const CHAR_UUID = 0xFFE1;
-
-    let bleDevice = null;
-    let writeCharacteristic = null;
-
-    const logEl = document.getElementById('log');
-    const statusEl = document.getElementById('status');
-    const connectBtn = document.getElementById('connectBtn');
-    const disconnectBtn = document.getElementById('disconnectBtn');
-    const controls = [
-      document.getElementById('onBtn'),
-      document.getElementById('offBtn'),
-      document.getElementById('colorPicker'),
-      document.getElementById('brightnessSlider'),
-      document.getElementById('rawHexInput'),
-      document.getElementById('sendRawBtn')
-    ];
-
-    function log(msg) {
-      logEl.innerHTML += `> ${msg}<br>`;
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    function setControlsEnabled(enabled) {
-      controls.forEach(el => el.disabled = !enabled);
-      disconnectBtn.disabled = !enabled;
-      connectBtn.disabled = enabled;
-    }
-
-    connectBtn.addEventListener('click', async () => {
-      if (!navigator.bluetooth) {
-        log('Error: Web Bluetooth is not supported in this browser.');
-        return;
-      }
-
-      try {
-        log('Opening BLE device picker...');
-        bleDevice = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: [SERVICE_UUID]
-        });
-
-        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
-
-        log(`Connecting to ${bleDevice.name || bleDevice.id}...`);
-        const server = await bleDevice.gatt.connect();
-
-        log('Discovering Service 0xFFE0...');
-        const service = await server.getPrimaryService(SERVICE_UUID);
-
-        log('Discovering Characteristic 0xFFE1...');
-        writeCharacteristic = await service.getCharacteristic(CHAR_UUID);
-
-        if (writeCharacteristic.properties.notify) {
-          await writeCharacteristic.startNotifications();
-          writeCharacteristic.addEventListener('characteristicvaluechanged', (event) => {
-            const val = new Uint8Array(event.target.value.buffer);
-            const hex = Array.from(val).map(b => b.toString(16).padStart(2, '0')).join(' ');
-            log(`RX: ${hex}`);
-          });
-        }
-
-        statusEl.textContent = `Status: Connected to ${bleDevice.name || 'LEDDMX'}`;
-        statusEl.style.color = '#28a745';
-        setControlsEnabled(true);
-        log('Connected and ready!');
-      } catch (err) {
-        const msg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
-        log(`Error: ${msg} (If code 2: picker cancelled or device still connected in another app)`);
-      }
-    });
-
-    disconnectBtn.addEventListener('click', () => {
-      if (bleDevice && bleDevice.gatt.connected) {
-        bleDevice.gatt.disconnect();
-      }
-    });
-
-    function onDisconnected() {
-      statusEl.textContent = 'Status: Disconnected';
-      statusEl.style.color = '#aaa';
-      setControlsEnabled(false);
-      writeCharacteristic = null;
-      log('Device disconnected.');
-    }
-
-    async function sendBytes(byteArray) {
-      if (!writeCharacteristic) return;
-      const buffer = new Uint8Array(byteArray);
-      const hexStr = Array.from(buffer).map(b => b.toString(16).padStart(2, '0')).join(' ');
-      try {
-        if (writeCharacteristic.properties.writeWithoutResponse) {
-          await writeCharacteristic.writeValueWithoutResponse(buffer);
-        } else {
-          await writeCharacteristic.writeValue(buffer);
-        }
-        log(`TX: ${hexStr}`);
-      } catch (err) {
-        log(`Write failed: ${err?.message || err}`);
-      }
-    }
-
-    document.getElementById('onBtn').addEventListener('click', () => {
-      sendBytes([0x7e, 0x00, 0x04, 0xf0, 0x00, 0x01, 0xff, 0x00, 0xef]);
-    });
-
-    document.getElementById('offBtn').addEventListener('click', () => {
-      sendBytes([0x7e, 0x00, 0x04, 0x00, 0x00, 0x00, 0xff, 0x00, 0xef]);
-    });
-
-    let colorTimeout = null;
-    document.getElementById('colorPicker').addEventListener('input', (e) => {
-      clearTimeout(colorTimeout);
-      colorTimeout = setTimeout(() => {
-        const hex = e.target.value;
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        sendBytes([0x7e, 0x00, 0x05, 0x03, r, g, b, 0x00, 0xef]);
-      }, 60);
-    });
-
-    let brightTimeout = null;
-    document.getElementById('brightnessSlider').addEventListener('input', (e) => {
-      const val = parseInt(e.target.value, 10);
-      document.getElementById('brightVal').textContent = val;
-      clearTimeout(brightTimeout);
-      brightTimeout = setTimeout(() => {
-        sendBytes([0x7e, 0x00, 0x01, val, 0x00, 0x00, 0x00, 0x00, 0xef]);
-      }, 60);
-    });
-
-    document.getElementById('sendRawBtn').addEventListener('click', () => {
-      const raw = document.getElementById('rawHexInput').value.trim();
-      if (!raw) return;
-      const bytes = raw.split(/[\s,]+/).map(h => parseInt(h, 16)).filter(n => !isNaN(n));
-      sendBytes(bytes);
-    });
-  </script>
-</body>
-</html>
+<div class="card"><h1>Mode</h1>
+<div class="row"><button data-m="AUTO" class="m">Auto</button><button data-m="ON" class="m">Manual ON</button><button data-m="OFF" class="m">Manual OFF</button></div></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const U="6e400001-b5a3-f393-e0a9-e50e24dcca9e",RXU="6e400002-b5a3-f393-e0a9-e50e24dcca9e",TXU="6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+let rx=null,first=true;
+function conn(on,txt){$("st").textContent=txt||(on?"Connected":"Not connected");if(!on){rx=null;first=true}}
+async function send(c){if(!rx){$("msg").textContent="Connect first.";return}
+ try{await rx.writeValue(new TextEncoder().encode(c))}catch(e){$("msg").textContent=e.message}}
+function parse(s){const p=s.split(",");if(p.length<6)return;
+ $("t").textContent=p[0]==="ERR"?"ERR":p[0];$("h").textContent=p[1]==="ERR"?"--":p[1];
+ if(first||document.activeElement.tagName!=="INPUT"){$("lo").value=p[2];$("hi").value=p[3];first=false}
+ const on=p[4]==="1";$("heat").textContent=on?"ON":"OFF";$("heat").className="badge"+(on?" on":"");
+ const m={A:"AUTO",N:"ON",F:"OFF"}[p[5]];
+ document.querySelectorAll(".m").forEach(b=>b.classList.toggle("sel",b.dataset.m===m));}
+$("conn").onclick=async()=>{
+ if(!navigator.bluetooth){$("st").textContent="Web Bluetooth not supported. Use Chrome on Android (or Bluefy on iPhone).";return}
+ try{conn(false,"Searching…");
+  const d=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[U]});
+  d.addEventListener("gattserverdisconnected",()=>conn(false));
+  const s=await d.gatt.connect(),svc=await s.getPrimaryService(U);
+  rx=await svc.getCharacteristic(RXU);const tx=await svc.getCharacteristic(TXU);
+  await tx.startNotifications();
+  tx.addEventListener("characteristicvaluechanged",e=>parse(new TextDecoder().decode(e.target.value)));
+  conn(true,"Connected to "+d.name);
+ }catch(e){conn(false,"Failed: "+e.message)}};
+$("apply").onclick=()=>{const l=+$("lo").value,h=+$("hi").value;
+ if(!(l>=5&&h<=40&&l<h)){$("msg").textContent="Need 5 ≤ ON temp < OFF temp ≤ 40.";return}
+ $("msg").textContent="";send("SET,"+l+","+h)};
+document.querySelectorAll(".m").forEach(b=>b.onclick=()=>send("MODE,"+b.dataset.m));
+</script></body></html>
