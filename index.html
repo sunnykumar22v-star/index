@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Heater Control</title>
+<title>Heater Control - Dual Sensors</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--tx:#1b1d21;--mut:#6b7280;--acc:#e8590c;--ok:#2b8a3e;--bd:#d9dce1;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--card:#202327;--tx:#eceef1;--mut:#9aa1ab;--acc:#ff8a3d;--ok:#51cf66;--bd:#343840}}
@@ -11,7 +11,7 @@ body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,sans-se
 main{max-width:460px;margin:0 auto;padding:16px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:12px}
 h1{font-size:1.2rem;margin:0 0 12px}
-.big{font-size:3.2rem;font-weight:700;line-height:1}
+.big{font-size:2.6rem;font-weight:700;line-height:1}
 .mut{color:var(--mut);font-size:.9rem}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 button{font:inherit;padding:10px 14px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);cursor:pointer}
@@ -20,15 +20,26 @@ button.sel{outline:2px solid var(--acc)}
 input{font:inherit;width:70px;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
 .badge{display:inline-block;padding:4px 12px;border-radius:99px;font-weight:600;background:var(--bd)}
 .badge.on{background:var(--acc);color:#fff}
+.sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
 </style></head><body><main>
 <div class="card"><h1>Smart Heater</h1>
 <div class="row"><button class="p" id="conn">Connect to ESP32_Heater</button><span class="mut" id="st">Not connected</span></div></div>
 
 <div class="card">
-<div class="row" style="justify-content:space-between;align-items:flex-end">
-<div><div class="mut">Fabric temperature</div><div class="big"><span id="t">--</span>°C</div></div>
-<div style="text-align:right"><div class="mut">Humidity</div><div style="font-size:1.6rem"><span id="h">--</span>%</div></div></div>
-<p>Heater: <span class="badge" id="heat">--</span></p></div>
+<div class="sensor-grid">
+  <div>
+    <div class="mut">DS18B20 Sensor</div>
+    <div class="big"><span id="t_ds">--</span>°C</div>
+  </div>
+  <div>
+    <div class="mut">DHT11 Temp</div>
+    <div style="font-size:1.8rem; font-weight:600;"><span id="t_dht">--</span>°C</div>
+  </div>
+</div>
+<div class="row" style="justify-content:space-between;align-items:center;margin-top:12px">
+  <div class="mut">Humidity: <span id="h" style="font-weight:600;color:var(--tx)">--</span>%</div>
+  <div>Heater: <span class="badge" id="heat">--</span></div>
+</div></div>
 
 <div class="card"><h1>Temperature limits</h1>
 <div class="row"><label>Heater ON below <input id="lo" type="number" min="5" max="39" value="20"> °C</label></div>
@@ -46,14 +57,28 @@ let rx=null,first=true;
 function conn(on,txt){$("st").textContent=txt||(on?"Connected":"Not connected");if(!on){rx=null;first=true}}
 async function send(c){if(!rx){$("msg").textContent="Connect first.";return}
  try{await rx.writeValue(new TextEncoder().encode(c))}catch(e){$("msg").textContent=e.message}}
-function parse(s){const p=s.split(",");if(p.length<6)return;
- $("t").textContent=p[0]==="ERR"?"ERR":p[0];$("h").textContent=p[1]==="ERR"?"--":p[1];
- if(first||document.activeElement.tagName!=="INPUT"){$("lo").value=p[2];$("hi").value=p[3];first=false}
- const on=p[4]==="1";$("heat").textContent=on?"ON":"OFF";$("heat").className="badge"+(on?" on":"");
- const m={A:"AUTO",N:"ON",F:"OFF"}[p[5]];
- document.querySelectorAll(".m").forEach(b=>b.classList.toggle("sel",b.dataset.m===m));}
+function parse(s){
+ const p=s.split(",");
+ if(p.length<7)return;
+ 
+ // Update sensor displays
+ $("t_ds").textContent=p[0]==="ERR"?"ERR":p[0];
+ $("t_dht").textContent=p[1]==="ERR"?"ERR":p[1];
+ $("h").textContent=p[2]==="ERR"?"--":p[2];
+
+ // Update inputs if it's the first load or user isn't actively typing
+ if(first||document.activeElement.tagName!=="INPUT"){$("lo").value=p[3];$("hi").value=p[4];first=false}
+ 
+ const on=p[5]==="1";
+ $("heat").textContent=on?"ON":"OFF";
+ $("heat").className="badge"+(on?" on":"");
+ 
+ const m={A:"AUTO",N:"ON",F:"OFF"}[p[6]];
+ document.querySelectorAll(".m").forEach(b=>b.classList.toggle("sel",b.dataset.m===m));
+}
+
 $("conn").onclick=async()=>{
- if(!navigator.bluetooth){$("st").textContent="Web Bluetooth not supported. Use Chrome on Android (or Bluefy on iPhone).";return}
+ if(!navigator.bluetooth){$("st").textContent="Web Bluetooth not supported. Use Bluefy on iOS.";return}
  try{conn(false,"Searching…");
   const d=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[U]});
   d.addEventListener("gattserverdisconnected",()=>conn(false));
@@ -63,6 +88,7 @@ $("conn").onclick=async()=>{
   tx.addEventListener("characteristicvaluechanged",e=>parse(new TextDecoder().decode(e.target.value)));
   conn(true,"Connected to "+d.name);
  }catch(e){conn(false,"Failed: "+e.message)}};
+
 $("apply").onclick=()=>{const l=+$("lo").value,h=+$("hi").value;
  if(!(l>=5&&h<=40&&l<h)){$("msg").textContent="Need 5 ≤ ON temp < OFF temp ≤ 40.";return}
  $("msg").textContent="";send("SET,"+l+","+h)};
